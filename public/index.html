@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>数据监控台</title>
+<style>
+  :root{
+    --bg:#f4f6fa; --surface:#fff; --line:#e8ecf2; --line-2:#f1f5f9; --line-3:#cbd5e1;
+    --txt:#0f172a; --txt2:#475569; --mut:#8a94a6;
+    --pri:#4f46e5; --pri-soft:#eef2ff; --pri-d:#4338ca;
+    --pos:#0f9d58; --neg:#e5484d; --warn:#f59e0b;
+    --r:12px; --r-sm:9px;
+    --sh:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.04);
+    --fs:13.5px; --fs-sm:12px; --fs-xs:11px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:"PingFang SC","Microsoft YaHei",system-ui,-apple-system,sans-serif;
+    font-size:var(--fs);line-height:1.5;-webkit-font-smoothing:antialiased}
+  button,input,select,textarea{font:inherit;color:inherit}
+  .ic{flex:none}
+  .mono{font-variant-numeric:tabular-nums}
+  .pos{color:var(--pos)}.neg{color:var(--neg)}.mut{color:var(--mut)}
+  .app{display:grid;grid-template-columns:228px 1fr;min-height:100vh}
+
+  /* ---------- 侧栏 ---------- */
+  .side{background:var(--surface);border-right:1px solid var(--line);padding:18px 14px;display:flex;flex-direction:column;gap:8px}
+  .brand{display:flex;align-items:center;gap:9px;font-weight:800;font-size:15px;padding:0 6px 12px}
+  .brand i{width:26px;height:26px;border-radius:8px;background:var(--pri);color:#fff;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:13px}
+  .search{display:flex;align-items:center;gap:7px;background:var(--line-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:6px 10px;margin-bottom:6px}
+  .search input{border:0;background:transparent;outline:none;width:100%;font-size:var(--fs-sm)}
+  .nav-t{font-size:10.5px;font-weight:800;color:var(--mut);letter-spacing:.1em;text-transform:uppercase;padding:8px 8px 6px}
+  .nav-i{display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:var(--r-sm);color:var(--txt2);
+         font-size:var(--fs-sm);font-weight:600;cursor:pointer;user-select:none}
+  .nav-i:hover{background:var(--line-2);color:var(--txt)}
+  .nav-i.on{background:var(--pri-soft);color:var(--pri)}
+  .nav-i .cnt{margin-left:auto;font-size:10.5px;font-weight:800;background:var(--line-2);color:var(--mut);border-radius:20px;padding:1px 7px}
+  .nav-i.on .cnt{background:#fff}
+
+  /* ---------- 主区 ---------- */
+  main{padding:22px 26px 40px;min-width:0}
+  .topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap;margin-bottom:18px}
+  .topbar h1{margin:0 0 4px;font-size:20px;font-weight:800}
+  .topbar p{margin:0;color:var(--mut);font-size:var(--fs-sm)}
+  .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);color:var(--txt2);
+       border-radius:var(--r-sm);padding:8px 12px;font-size:var(--fs-sm);font-weight:600;cursor:pointer;box-shadow:var(--sh)}
+  .btn:hover{border-color:var(--line-3);color:var(--txt)}
+  .btn.p{background:var(--pri);border-color:var(--pri);color:#fff}
+  .btn.p:hover{background:var(--pri-d);border-color:var(--pri-d);color:#fff}
+  .btn:disabled{opacity:.55;cursor:not-allowed}
+  .btn.sm{padding:5px 9px;font-size:var(--fs-xs)}
+  .btn.danger{color:var(--neg);border-color:#f3cfd0}
+  .btn.danger:hover{background:#fef2f2}
+  .sw{display:flex;align-items:center;gap:6px;font-size:var(--fs-sm);color:var(--txt2);font-weight:600;cursor:pointer;user-select:none}
+  .sw input{accent-color:var(--pri);width:15px;height:15px}
+
+  /* ---------- 结论条 ---------- */
+  .verdict{display:flex;align-items:center;gap:10px;padding:11px 15px;border-radius:var(--r);margin-bottom:16px;font-weight:700;border:1px solid}
+  .verdict .dot{width:8px;height:8px;border-radius:50%}
+  .verdict.ok{background:#f0fdf4;border-color:#c9ecd6;color:#0b7a46}.verdict.ok .dot{background:var(--pos)}
+  .verdict.warn{background:#fffbeb;border-color:#f6e0b0;color:#b45309}.verdict.warn .dot{background:var(--warn)}
+  .verdict.bad{background:#fef2f2;border-color:#f5c9c9;color:#b42318}.verdict.bad .dot{background:var(--neg)}
+
+  /* ---------- KPI ---------- */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}
+  .kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;box-shadow:var(--sh);cursor:pointer;transition:.14s}
+  .kpi:hover{transform:translateY(-1px);border-color:var(--line-3)}
+  .kpi-top{display:flex;align-items:center;gap:7px;color:var(--mut);font-size:var(--fs-sm);font-weight:700;margin-bottom:8px}
+  .kpi-v{font-size:26px;font-weight:800;display:flex;align-items:baseline;gap:8px}
+  .kpi-v i{font-size:var(--fs-xs);font-weight:600;color:var(--mut);font-style:normal}
+  .kpi.warn{border-color:#f6e0b0;background:linear-gradient(180deg,#fffdf6,#fff)}
+  .kpi.warn .kpi-v,.kpi.warn .kpi-top{color:var(--warn)}
+  .kpi.neg{border-color:#f5c9c9;background:linear-gradient(180deg,#fff8f8,#fff)}
+  .kpi.neg .kpi-v,.kpi.neg .kpi-top{color:var(--neg)}
+
+  /* ---------- 卡片 / 图表 ---------- */
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden}
+  .card-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px 10px;flex-wrap:wrap}
+  .card-h h2{margin:0;font-size:14px;font-weight:800}
+  .card-b{padding:0 16px 16px}
+  .charts{display:grid;grid-template-columns:1.9fr 1fr;gap:14px;margin-bottom:16px}
+  .area{width:100%;height:170px;display:block}
+  .gridline{stroke:var(--line);stroke-width:1;stroke-dasharray:3 4}
+  .axis{fill:var(--mut);font-size:10px;font-weight:600}
+  .donut-wrap{display:flex;flex-direction:column;align-items:center;gap:12px;padding-top:4px}
+  .donut-c{position:relative;display:flex;align-items:center;justify-content:center}
+  .donut-c .mid{position:absolute;text-align:center;line-height:1.15}
+  .donut-c .mid b{display:block;font-size:23px;font-weight:800}
+  .donut-c .mid span{font-size:10.5px;color:var(--mut);font-weight:700}
+  .legend{display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:center;font-size:var(--fs-xs);color:var(--txt2);font-weight:600}
+  .legend span{display:flex;align-items:center;gap:6px}
+  .legend em{width:9px;height:9px;border-radius:3px;display:inline-block}
+
+  /* ---------- 表格 ---------- */
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .fchip{font-size:var(--fs-xs);font-weight:700;color:var(--mut);border:1px solid var(--line);border-radius:20px;padding:4px 11px;background:var(--line-2);cursor:pointer}
+  .fchip:hover{border-color:var(--line-3)}
+  .fchip.on{background:var(--pri);border-color:var(--pri);color:#fff}
+  .tw{overflow-x:auto}
+  table{width:100%;border-collapse:separate;border-spacing:0}
+  th,td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+  thead th{background:#fbfcfe;color:var(--mut);font-size:var(--fs-xs);font-weight:800;letter-spacing:.04em;text-transform:uppercase;
+           position:sticky;top:0;z-index:1;cursor:pointer;user-select:none}
+  thead th:hover{color:var(--txt)}
+  thead th .ar{opacity:.35;margin-left:3px}
+  thead th.sorted .ar{opacity:1;color:var(--pri)}
+  td.n,th.n{text-align:right}
+  tbody tr{cursor:pointer}
+  tbody tr:hover{background:#fafbff}
+  tbody tr:last-child td{border-bottom:0}
+  .row-warn{background:#fffdf6}.row-warn:hover{background:#fffaec}
+  .row-fail{background:#fff8f8}.row-fail:hover{background:#fff2f2}
+  .cname{display:flex;align-items:center;gap:10px;min-width:200px;white-space:normal}
+  .avatar{width:30px;height:30px;border-radius:9px;background:var(--pri-soft);color:var(--pri);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex:none}
+  .cname .m{display:flex;flex-direction:column;min-width:0}
+  .cname .m b{font-size:var(--fs)}
+  .cname .m i{font-style:normal;color:var(--mut);font-size:10.5px;font-family:ui-monospace,Consolas,monospace}
+  .badge{display:inline-block;font-size:var(--fs-xs);font-weight:800;border-radius:6px;padding:2px 7px}
+  .badge.pos{background:#eafaf1;color:#0b7a46}
+  .badge.neg{background:#fdecec;color:#b42318}
+  .badge.neu{background:var(--line-2);color:var(--mut)}
+  .chip{display:inline-block;font-size:var(--fs-xs);font-weight:700;border-radius:20px;padding:3px 10px}
+  .chip.ok{background:#eafaf1;color:#0b7a46}
+  .chip.info{background:var(--pri-soft);color:var(--pri)}
+  .chip.warn{background:#fef3c7;color:#b45309}
+  .chip.neg{background:#fdecec;color:#b42318}
+  .empty{color:var(--mut);font-size:var(--fs);padding:34px;text-align:center}
+  .card-f{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 16px;border-top:1px solid var(--line);color:var(--mut);font-size:var(--fs-xs);font-weight:600;background:#fbfcfe;flex-wrap:wrap}
+  details.fold summary{cursor:pointer;padding:11px 16px;font-size:var(--fs-xs);font-weight:800;color:var(--mut);list-style:none;display:flex;align-items:center;gap:8px;background:#fbfcfe;border-top:1px solid var(--line)}
+  details.fold summary::-webkit-details-marker{display:none}
+  details.fold summary::before{content:"▸";transition:.15s}
+  details.fold[open] summary::before{transform:rotate(90deg)}
+
+  /* ---------- 表单 ---------- */
+  .form{display:grid;gap:12px}
+  .fld{display:grid;gap:5px}
+  .fld label{font-size:var(--fs-sm);font-weight:700;color:var(--txt2)}
+  .fld .hint{font-size:var(--fs-xs);color:var(--mut)}
+  .fld input,.fld select,.fld textarea{border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 11px;outline:none;background:#fff}
+  .fld input:focus,.fld select:focus,.fld textarea:focus{border-color:var(--pri);box-shadow:0 0 0 3px rgba(79,70,229,.12)}
+  .fld textarea{font-family:ui-monospace,Consolas,monospace;font-size:var(--fs-sm);resize:vertical}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  details.adv{border:1px solid var(--line);border-radius:var(--r-sm);padding:0 12px;background:var(--line-2)}
+  details.adv summary{cursor:pointer;padding:9px 0;font-size:var(--fs-sm);font-weight:700;color:var(--txt2);
+                      list-style:none;display:flex;align-items:center;gap:7px}
+  details.adv summary::-webkit-details-marker{display:none}
+  details.adv summary::before{content:"▸";transition:.15s}
+  details.adv[open] summary::before{transform:rotate(90deg)}
+  .cfgbox{background:var(--line-2);border-radius:var(--r-sm);padding:10px 12px;font-family:ui-monospace,Consolas,monospace;
+          font-size:11px;line-height:1.7;white-space:pre-wrap;word-break:break-all;color:var(--txt2);max-height:220px;overflow:auto}
+
+  /* ---------- 抽屉 / 弹窗 / toast ---------- */
+  .mask{position:fixed;inset:0;background:rgba(16,24,40,.45);display:flex;z-index:50}
+  .mask.hide{display:none}
+  .drawer{margin-left:auto;width:min(560px,94vw);background:var(--surface);height:100%;display:flex;flex-direction:column;box-shadow:-12px 0 32px rgba(16,24,40,.16)}
+  .drawer-h{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid var(--line)}
+  .drawer-h h3{margin:0 0 3px;font-size:16px}
+  .drawer-h p{margin:0;color:var(--mut);font-size:var(--fs-xs);font-family:ui-monospace,Consolas,monospace;word-break:break-all}
+  .drawer-b{padding:18px 20px;overflow:auto;flex:1}
+  .drawer-f{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end;background:#fbfcfe}
+  .modal{margin:auto;background:var(--surface);border-radius:14px;width:min(600px,94vw);max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(16,24,40,.28)}
+  .x{border:0;background:transparent;font-size:20px;line-height:1;cursor:pointer;color:var(--mut);padding:2px 6px;border-radius:6px}
+  .x:hover{background:var(--line-2);color:var(--txt)}
+  #toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,16px);background:#1e293b;color:#fff;
+         padding:10px 18px;border-radius:10px;font-size:var(--fs-sm);font-weight:600;opacity:0;transition:.22s;pointer-events:none;z-index:99;max-width:88vw}
+  #toast.show{opacity:1;transform:translate(-50%,0)}
+  #toast.err{background:#b42318}
+  #toast.ok{background:#0b7a46}
+  .skel{background:linear-gradient(90deg,#eef1f6 25%,#f6f8fb 37%,#eef1f6 63%);background-size:400% 100%;animation:sk 1.2s infinite;border-radius:6px}
+  @keyframes sk{0%{background-position:100% 50%}100%{background-position:0 50%}}
+  .spin{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .detail-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px}
+  .dstat{background:var(--line-2);border-radius:var(--r-sm);padding:10px 12px}
+  .dstat span{display:block;font-size:var(--fs-xs);color:var(--mut);font-weight:700;margin-bottom:2px}
+  .dstat b{font-size:17px;font-weight:800}
+  .htable{font-size:var(--fs-xs)}
+  .htable th,.htable td{padding:6px 10px}
+
+  @media (max-width:1080px){
+    .app{grid-template-columns:1fr}
+    .side{flex-direction:row;align-items:center;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line);padding:12px 16px}
+    .nav-t{display:none}.nav-i{white-space:nowrap}
+    .charts{grid-template-columns:1fr}
+  }
+  @media (max-width:760px){ main{padding:16px 14px 32px} .kpis{grid-template-columns:repeat(2,1fr)} .row2{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><i>监</i>数据监控台</div>
+    <div class="search">
+      <svg class="ic" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>
+      <input id="q" placeholder="搜索目标名 / ID / 地址" autocomplete="off" />
+    </div>
+    <div>
+      <div class="nav-t">监控</div>
+      <div class="nav-i on" data-view="overview">总览</div>
+      <div class="nav-i" data-view="targets">目标管理 <span class="cnt" id="cntTargets">0</span></div>
+      <div class="nav-i" data-view="notify">通知推送</div>
+      <div class="nav-i" data-view="status">运行状态</div>
+    </div>
+  </aside>
+
+  <main>
+    <div class="topbar">
+      <div>
+        <h1 id="title">数据监控台</h1>
+        <p id="meta">加载中…</p>
+      </div>
+      <div class="actions">
+        <label class="sw"><input type="checkbox" id="auto" /> 自动刷新</label>
+        <button class="btn" id="btnReport">查看报告</button>
+        <button class="btn" id="btnCsv">导出 CSV</button>
+        <button class="btn" id="btnJson">导出 JSON</button>
+        <button class="btn p" id="btnRun">刷新数据</button>
+      </div>
+    </div>
+    <div id="view"></div>
+  </main>
+</div>
+
+<div class="mask hide" id="drawerMask"><div class="drawer" id="drawer"></div></div>
+<div class="mask hide" id="modalMask"><div class="modal" id="modal"></div></div>
+<div id="toast"></div>
+
+<script>
+"use strict";
+/* ========================= 状态 ========================= */
+const S = { data: null, view: "overview", filter: "all", q: "", sort: { k: "rank", d: 1 }, busy: false, auto: null, drawerId: null, notify: null };
+const $ = (id) => document.getElementById(id);
+const el = (h) => { const d = document.createElement("div"); d.innerHTML = h.trim(); return d.firstElementChild; };
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const fmt = (v) => v == null ? "—" : typeof v === "number" ? (Number.isInteger(v) ? v.toLocaleString("zh-CN") : v.toFixed(3).replace(/\.?0+$/, "")) : String(v).slice(0, 40);
+const compact = (n) => typeof n !== "number" ? fmt(n) : Math.abs(n) >= 1e8 ? (n / 1e8).toFixed(2) + "亿" : Math.abs(n) >= 1e4 ? (n / 1e4).toFixed(2) + "万" : n.toLocaleString("zh-CN");
+const tstr = (ts) => !ts ? "—" : new Date(ts).toLocaleString("zh-CN", { hour12: false });
+const isActive = (r) => !!(r.error || r.alert || r.changed === true || (r.delta != null && r.delta !== 0));
+
+/* ========================= API ========================= */
+async function api(path, opts = {}) {
+  const res = await fetch(path, { headers: { "content-type": "application/json" }, ...opts });
+  let j = null;
+  try { j = await res.json(); } catch {}
+  if (!res.ok || (j && j.ok === false)) throw new Error(j?.error || `HTTP ${res.status}`);
+  return j;
+}
+const toast = (msg, kind = "") => {
+  const t = $("toast");
+  t.textContent = msg; t.className = "show " + kind;
+  clearTimeout(t._t); t._t = setTimeout(() => (t.className = ""), 2600);
+};
+
+/* ========================= 图表(纯 SVG) ========================= */
+function sparkline(vals, w = 92, h = 26) {
+  const n = (vals || []).filter((v) => typeof v === "number");
+  if (n.length < 2) return '<span class="mut">—</span>';
+  const min = Math.min(...n), max = Math.max(...n), span = max - min || 1, step = w / (n.length - 1);
+  const pts = n.map((v, i) => [i * step, h - 3 - ((v - min) / span) * (h - 8)]);
+  const d = pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(" ");
+  const up = n[n.length - 1] >= n[0], c = up ? "var(--pos)" : "var(--neg)", last = pts[pts.length - 1];
+  return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"><path d="${d} L${w} ${h} L0 ${h}Z" fill="${c}" opacity=".10"/><path d="${d}" fill="none" stroke="${c}" stroke-width="1.6" stroke-linejoin="round"/><circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="2.3" fill="${c}"/></svg>`;
+}
+function areaChart(vals, w = 720, h = 168) {
+  const n = (vals || []).filter((v) => typeof v === "number");
+  if (n.length < 2) return '<div class="empty">历史上只有 1 个点,再采集几次就有走势了</div>';
+  const pL = 8, pR = 8, pT = 12, pB = 22, iw = w - pL - pR, ih = h - pT - pB;
+  const min = Math.min(...n), max = Math.max(...n), span = max - min || 1, step = iw / (n.length - 1);
+  const pts = n.map((v, i) => [pL + i * step, pT + ih - ((v - min) / span) * ih]);
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(" ");
+  const grid = [0, .25, .5, .75, 1].map((f) => `<line x1="${pL}" y1="${(pT + ih * f).toFixed(1)}" x2="${pL + iw}" y2="${(pT + ih * f).toFixed(1)}" class="gridline"/>`).join("");
+  return `<svg viewBox="0 0 ${w} ${h}" class="area" preserveAspectRatio="none">
+    <defs><linearGradient id="ag" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--pri)" stop-opacity=".22"/><stop offset="1" stop-color="var(--pri)" stop-opacity="0"/></linearGradient></defs>
+    ${grid}<path d="${line} L${(pL + iw).toFixed(1)} ${(pT + ih).toFixed(1)} L${pL} ${(pT + ih).toFixed(1)}Z" fill="url(#ag)"/>
+    <path d="${line}" fill="none" stroke="var(--pri)" stroke-width="2.2" stroke-linejoin="round"/>
+    <circle cx="${pts.at(-1)[0].toFixed(1)}" cy="${pts.at(-1)[1].toFixed(1)}" r="3.4" fill="#fff" stroke="var(--pri)" stroke-width="2.4"/>
+    <text x="${pL + iw}" y="${(pT - 2).toFixed(1)}" class="axis" text-anchor="end">${compact(max)}</text>
+    <text x="${pL + iw}" y="${(pT + ih + 12).toFixed(1)}" class="axis" text-anchor="end">${compact(min)}</text>
+    <text x="${pL}" y="${h - 4}" class="axis">${n.length} 次前</text>
+    <text x="${pL + iw}" y="${h - 4}" class="axis" text-anchor="end">本次</text></svg>`;
+}
+function donut(segs, size = 150, th = 17) {
+  const tot = segs.reduce((a, s) => a + s.value, 0), r = (size - th) / 2, c = size / 2;
+  const act = segs.filter((s) => s.value > 0);
+  if (!tot || !act.length) return `<div class="empty" style="height:${size}px">暂无数据</div>`;
+  if (act.length === 1) return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}"><circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${act[0].color}" stroke-width="${th}"/></svg>`;
+  let a0 = -Math.PI / 2;
+  const arcs = act.map((s) => {
+    const sw = (s.value / tot) * Math.PI * 2;
+    const x1 = c + r * Math.cos(a0), y1 = c + r * Math.sin(a0), x2 = c + r * Math.cos(a0 + sw), y2 = c + r * Math.sin(a0 + sw);
+    const large = sw > Math.PI ? 1 : 0; a0 += sw;
+    return `<path d="M${x1.toFixed(1)} ${y1.toFixed(1)} A${r} ${r} 0 ${large} 1 ${x2.toFixed(1)} ${y2.toFixed(1)}" fill="none" stroke="${s.color}" stroke-width="${th}"/>`;
+  }).join("");
+  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">${arcs}</svg>`;
+}
+
+/* ========================= 排序 / 过滤 ========================= */
+const rank = (r) => (r.error ? 0 : r.alert ? 1 : isActive(r) ? 2 : 3);
+function visibleRows() {
+  let rows = (S.data?.results ?? []).slice();
+  if (S.q) {
+    const q = S.q.toLowerCase();
+    rows = rows.filter((r) => (r.label + " " + r.id + " " + (r.url ?? "")).toLowerCase().includes(q));
+  }
+  if (S.filter === "changed") rows = rows.filter(isActive);
+  else if (S.filter === "alert") rows = rows.filter((r) => r.alert);
+  else if (S.filter === "error") rows = rows.filter((r) => r.error);
+  const { k, d } = S.sort;
+  rows.sort((a, b) => {
+    if (k === "rank") return d * (rank(a) - rank(b)) || d * (Math.abs(b.deltaPct ?? b.delta ?? 0) - Math.abs(a.deltaPct ?? a.delta ?? 0));
+    if (k === "name") return d * String(a.label).localeCompare(String(b.label), "zh");
+    if (k === "value") return d * ((a.value ?? -Infinity) > (b.value ?? -Infinity) ? 1 : -1);
+    if (k === "deltaPct") return d * (Math.abs(a.deltaPct ?? 0) - Math.abs(b.deltaPct ?? 0));
+    if (k === "status") return d * (rank(a) - rank(b));
+    return 0;
+  });
+  return rows;
+}
+
+/* ========================= 渲染 ========================= */
+async function render() {
+  if (!S.data) { $("view").innerHTML = '<div class="card"><div class="empty">加载中…</div></div>'; return; }
+  const d = S.data, sum = d.summary ?? {};
+  const rt = d.runtime ?? {};
+  $("title").textContent = d.title ?? "数据监控台";
+  $("meta").textContent = `${d.results.length} 个目标 · 最近采集 ${rt.lastRun ? tstr(rt.lastRun.at) : "—"}${rt.lastRun ? ` · 耗时 ${(rt.lastRun.ms / 1000).toFixed(1)}s` : ""}${rt.runsTotal ? ` · 本次会话共采集 ${rt.runsTotal} 次` : ""}`;
+  $("cntTargets").textContent = d.results.length;
+  document.querySelectorAll(".nav-i").forEach((n) => n.classList.toggle("on", n.dataset.view === S.view));
+  if (S.view === "notify" && !S.notify) {
+    try { S.notify = (await api("/api/notify")).notify; } catch { S.notify = { mode: "on-alert", channels: [] }; }
+  }
+  $("view").innerHTML = S.view === "overview" ? viewOverview()
+    : S.view === "targets" ? viewTargets()
+    : S.view === "notify" ? viewNotify()
+    : viewStatus();
+  bindNotify();
+  bindView();
+}
+
+function headline() {
+  const s = S.data.summary ?? {};
+  if (s.errors) return [`${s.errors} 项采集失败,需立即处理`, "bad"];
+  if (s.alerts) return [`${s.alerts} 项触发告警`, "warn"];
+  if (s.changed) return [`${s.changed} 项发生变化,全部正常`, "warn"];
+  return ["全部持平,无异常", "ok"];
+}
+
+function viewOverview() {
+  const d = S.data, s = d.summary ?? {};
+  const [text, tone] = headline();
+  const rows = visibleRows();
+  const active = rows.filter(isActive), quiet = rows.filter((r) => !isActive(r));
+  const donutSegs = [
+    { label: "正常", value: d.results.length - active.length, color: "var(--line-3)" },
+    { label: "有变化", value: d.results.filter((r) => r.changed === true || (r.delta != null && r.delta !== 0)).length, color: "var(--pri)" },
+    { label: "告警", value: s.alerts ?? 0, color: "var(--warn)" },
+    { label: "失败", value: s.errors ?? 0, color: "var(--neg)" },
+  ];
+  const series = d.results.filter((r) => (r.spark?.length ?? 0) > 2)
+    .sort((a, b) => variation(b.spark) - variation(a.spark))[0] ?? null;
+
+  const kpi = (k, label, val, sub, cls, filter) =>
+    `<article class="kpi ${cls}" data-filter="${filter}"><div class="kpi-top">${k}<span>${label}</span></div><div class="kpi-v">${val}<i>${sub}</i></div></article>`;
+
+  return `
+    <div class="verdict ${tone}"><span class="dot"></span>${text}</div>
+    <section class="kpis">
+      ${kpi("◎", "监控目标", d.results.length, "个", "", "all")}
+      ${kpi("◈", "发生变化", s.changed ?? 0, "点击筛选", "", "changed")}
+      ${kpi("⚠", "触发告警", s.alerts ?? 0, (s.alerts ? "需处理" : "全部正常"), s.alerts ? "warn" : "", "alert")}
+      ${kpi("✕", "采集失败", s.errors ?? 0, (s.errors ? "见明细" : "全部成功"), s.errors ? "neg" : "", "error")}
+    </section>
+    <section class="charts">
+      <div class="card">
+        <div class="card-h"><h2>◪ 走势 · ${esc(series?.label ?? "暂无足够历史")}</h2><span class="mut" style="font-size:var(--fs-xs);font-weight:600">自动选变化最活跃的目标</span></div>
+        <div class="card-b">${areaChart(series?.spark ?? [])}</div>
+      </div>
+      <div class="card">
+        <div class="card-h"><h2>状态构成</h2></div>
+        <div class="card-b donut-wrap">
+          <div class="donut-c">${donut(donutSegs)}<div class="mid"><b>${s.changed ?? 0}</b><span>项有变化</span></div></div>
+          <div class="legend">${donutSegs.map((x) => `<span><em style="background:${x.color}"></em>${x.label} ${x.value}</span>`).join("")}</div>
+        </div>
+      </div>
+    </section>
+    <section class="card">
+      <div class="card-h">
+        <h2>监控明细 <span class="mut" style="font-weight:600;font-size:var(--fs-xs)">· 显示 ${rows.length} / ${d.results.length}</span></h2>
+        <div class="chips" id="chips">
+          ${[["all", "全部"], ["changed", "有变化"], ["alert", `告警 ${s.alerts ?? 0}`], ["error", `失败 ${s.errors ?? 0}`]]
+            .map(([k, t]) => `<span class="fchip ${S.filter === k ? "on" : ""}" data-f="${k}">${t}</span>`).join("")}
+        </div>
+      </div>
+      <div class="tw">
+        <table>
+          <thead><tr>
+            ${th("name", "监控目标")}${th("value", "当前值", 1)}<th class="n">上次值</th>${th("deltaPct", "变化", 1)}<th class="n">变化率</th><th class="n">近期走势</th>${th("status", "状态")}<th class="n">操作</th>
+          </tr></thead>
+          <tbody>${active.length ? active.map(rowHtml).join("") : `<tr><td colspan="8" class="empty">没有符合当前筛选 / 搜索的目标</td></tr>`}</tbody>
+        </table>
+      </div>
+      ${quiet.length ? `<details class="fold"><summary>其余 ${quiet.length} 项(未发生变化)</summary><div class="tw"><table><tbody>${quiet.map(rowHtml).join("")}</tbody></table></div></details>` : ""}
+      <div class="card-f"><span>点击任意行查看历史详情 · 点击「重采」只采集该目标</span><span>数据源:各目标公开接口 / 页面</span></div>
+    </section>`;
+}
+
+const th = (k, label, numeric) => {
+  const on = S.sort.k === k;
+  return `<th class="${numeric ? "n " : ""}${on ? "sorted" : ""}" data-sort="${k}">${label}<span class="ar">${on ? (S.sort.d > 0 ? "▲" : "▼") : "↕"}</span></th>`;
+};
+const variation = (a) => {
+  if (!a || a.length < 3) return -1;
+  const mn = Math.min(...a), mx = Math.max(...a), mean = a.reduce((x, y) => x + y, 0) / a.length;
+  return (mx - mn) / (Math.abs(mean) || 1);
+};
+
+function rowHtml(r) {
+  const cls = r.error ? "row-fail" : r.alert ? "row-warn" : "";
+  const badge = r.error ? '<span class="mut">—</span>'
+    : r.changed !== undefined ? (r.changed ? '<span class="badge pos">已变更</span>' : '<span class="mut">未变更</span>')
+    : r.delta == null ? '<span class="badge neu">首次</span>'
+    : r.delta === 0 ? '<span class="mut">持平</span>'
+    : `<span class="badge ${r.delta > 0 ? "pos" : "neg"}">${r.delta > 0 ? "▲" : "▼"} ${compact(Math.abs(r.delta))}</span>`;
+  const pct = r.deltaPct == null ? '<span class="mut">—</span>'
+    : r.deltaPct === 0 ? '<span class="mut">0.00%</span>'
+    : `<span class="${r.deltaPct > 0 ? "pos" : "neg"}">${r.deltaPct > 0 ? "+" : ""}${r.deltaPct.toFixed(2)}%</span>`;
+  const st = r.error ? `<span class="chip neg" title="${esc(r.error)}">采集失败</span>`
+    : r.alert ? `<span class="chip warn">${esc(r.alert)}</span>`
+    : isActive(r) ? '<span class="chip info">有变化</span>' : '<span class="chip ok">正常</span>';
+  return `<tr class="${cls}" data-id="${esc(r.id)}">
+    <td class="cname"><span class="avatar">${esc((r.label || "?").trim().slice(0, 1))}</span><span class="m"><b>${esc(r.label)}</b><i>${esc(r.id)}</i></span></td>
+    <td class="n" style="font-weight:700">${r.error ? '<span class="neg">失败</span>' : compact(r.value) + (r.unit ? `<i class="mut" style="font-style:normal;font-size:var(--fs-xs);margin-left:3px">${esc(r.unit)}</i>` : "")}</td>
+    <td class="n mut">${r.error ? "—" : compact(r.prevValue)}</td>
+    <td class="n">${badge}</td>
+    <td class="n mono">${pct}</td>
+    <td class="n">${sparkline(r.spark)}</td>
+    <td>${st}</td>
+    <td class="n"><button class="btn sm" data-recollect="${esc(r.id)}">重采</button></td>
+  </tr>`;
+}
+
+function viewTargets() {
+  const rows = S.data.results;
+  return `
+    <div class="card">
+      <div class="card-h">
+        <h2>监控目标管理 <span class="mut" style="font-weight:600;font-size:var(--fs-xs)">· 共 ${rows.length} 个,改动会直接写入 config.json</span></h2>
+        <button class="btn p" id="btnAdd">+ 新增目标</button>
+      </div>
+      <div class="tw">
+        <table>
+          <thead><tr><th>目标</th><th>地址</th><th>提取规则</th><th>告警规则</th><th class="n">历史</th><th class="n">操作</th></tr></thead>
+          <tbody>${rows.length ? rows.map((r) => `
+            <tr>
+              <td class="cname"><span class="avatar">${esc((r.label || "?").trim().slice(0, 1))}</span><span class="m"><b>${esc(r.label)}</b><i>${esc(r.id)}</i></span></td>
+              <td><span class="mono" style="font-size:var(--fs-xs);color:var(--txt2)">${esc((r.url || "").slice(0, 46))}${(r.url || "").length > 46 ? "…" : ""}</span></td>
+              <td>${r.multiStep ? `<span class="chip info">多步 ×${r.stepCount}</span> ` : ""}${r.cookies?.length ? `<span class="chip warn" title="需要登录态">🔒 登录</span> ` : ""}<code style="font-size:var(--fs-xs);background:var(--line-2);padding:1px 5px;border-radius:4px">${esc(r.extract?.type ?? "steps")}${r.extract?.path ? ":" + esc(r.extract.path) : ""}${r.extract?.pattern ? ":" + esc(String(r.extract.pattern).slice(0, 18)) : ""}</code></td>
+              <td>${r.rule ? `<code style="font-size:var(--fs-xs);background:#eef2ff;color:var(--pri);padding:1px 5px;border-radius:4px">${esc(Object.entries(r.rule).map(([k, v]) => k + "=" + v).join(" "))}</code>` : '<span class="mut">无</span>'}</td>
+              <td class="n mono">${r.historyCount ?? 0} 条</td>
+              <td class="n">
+                <button class="btn sm" data-recollect="${esc(r.id)}">重采</button>
+                <button class="btn sm" data-edit="${esc(r.id)}">编辑</button>
+                <button class="btn sm danger" data-del="${esc(r.id)}">删除</button>
+              </td>
+            </tr>`).join("") : '<tr><td colspan="6" class="empty">还没有监控目标,点右上角新增</td></tr>'}</tbody>
+        </table>
+      </div>
+      <div class="card-f"><span>删除只移除配置,历史快照 <code>data/&lt;id&gt;.jsonl</code> 会保留</span><span>共 ${rows.length} 个目标</span></div>
+    </div>`;
+}
+
+/* ---------------- 通知推送视图 ---------------- */
+const CH_TYPES = { wecom: "企业微信机器人", dingtalk: "钉钉机器人(支持加签)", email: "邮件(SMTP)", webhook: "通用 Webhook" };
+const CH_FIELDS = {
+  wecom: [["webhook", "Webhook 地址", "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..."], ["_tip", "群机器人 → 添加 → 复制 Webhook 地址", ""]],
+  dingtalk: [["webhook", "Webhook 地址", "https://oapi.dingtalk.com/robot/send?access_token=..."], ["secret", "加签密钥(没开加签就留空)", "SEC..."], ["_tip", "安全设置若选了「加签」,把密钥填在左边", ""]],
+  email: [["host", "SMTP 服务器", "smtp.qq.com"], ["port", "端口", "465"], ["user", "账号", "you@qq.com"], ["pass", "授权码(不是登录密码)", "在邮箱设置里开启 SMTP 后生成"], ["from", "发件人", "you@qq.com"], ["to", "收件人(多个用逗号分隔)", "a@x.com, b@y.com"]],
+  webhook: [["url", "目标地址", "https://... 会 POST {title,text,summary,at}"], ["template", "模板(可选:serverchan)", "留空为通用格式"]],
+};
+const chCard = (ch, i) => {
+  const type = ch.type ?? "wecom";
+  return `<div class="card" style="box-shadow:none;margin-bottom:12px" data-ch="${i}">
+    <div class="card-h" style="padding:12px 14px">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <select class="chType" data-i="${i}" style="border:1px solid var(--line);border-radius:8px;padding:5px 8px">
+          ${Object.entries(CH_TYPES).map(([k, v]) => `<option value="${k}" ${k === type ? "selected" : ""}>${v}</option>`).join("")}
+        </select>
+        <label class="sw"><input type="checkbox" class="chOn" data-i="${i}" ${ch.disabled ? "" : "checked"} /> 启用</label>
+      </div>
+      <button class="btn sm danger" data-chdel="${i}">移除</button>
+    </div>
+    <div class="card-b" style="padding:0 14px 14px">
+      <div style="display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))">
+        ${(CH_FIELDS[type] ?? []).map(([k, label, ph]) => k === "_tip"
+          ? `<div class="fld" style="justify-content:flex-end"><span class="hint">💡 ${esc(label)}</span></div>`
+          : `<div class="fld"><label>${esc(label)}</label><input class="chF" data-i="${i}" data-k="${k}" value="${esc(Array.isArray(ch[k]) ? ch[k].join(", ") : (ch[k] ?? ""))}" placeholder="${esc(ph)}" /></div>`
+        ).join("")}
+      </div>
+    </div>
+  </div>`;
+};
+
+function viewNotify() {
+  const n = S.notify ?? { mode: "on-alert", channels: [] };
+  const enabled = n.channels.filter((c) => !c.disabled).length;
+  const rt = S.data?.runtime ?? {};
+  const ln = rt.lastNotify;
+  const notifRow = (r) => `<tr><td>${esc(r.type)}</td><td>${r.ok ? '<span class="chip ok">成功</span>' : `<span class="chip neg">失败</span> <span class="mut" style="font-size:var(--fs-xs)">${esc(r.error ?? "")}</span>`}${r.reason ? ` <span class="mut" style="font-size:var(--fs-xs)">${esc(r.reason)}</span>` : ""}</td></tr>`;
+  return `
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-h"><h2>推送时机</h2><button class="btn p" id="btnNotifyTest">发送测试通知</button></div>
+      <div class="card-b">
+        <div class="fld" style="max-width:480px">
+          <select id="nMode">
+            <option value="on-alert" ${n.mode === "on-alert" ? "selected" : ""}>只在有告警 / 采集失败时推送(推荐)</option>
+            <option value="always" ${n.mode === "always" ? "selected" : ""}>每次采集都推送</option>
+            <option value="never" ${n.mode === "never" ? "selected" : ""}>不推送</option>
+          </select>
+          <span class="hint">只在出事时打扰用户 —— 全持平时静默,这是留存的关键</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-h">
+        <h2>推送渠道 <span class="mut" style="font-weight:600;font-size:var(--fs-xs)">· ${enabled} 个已启用</span></h2>
+        <div style="display:flex;gap:8px">
+          <button class="btn" id="btnAddChannel">+ 添加渠道</button>
+          <button class="btn p" id="btnSaveNotify">保存配置</button>
+        </div>
+      </div>
+      <div class="card-b" style="padding:14px 16px">
+        ${n.channels.length ? n.channels.map(chCard).join("") : '<div class="empty">还没有配置推送渠道 —— 点「+ 添加渠道」开始<br /><span class="mut" style="font-size:var(--fs-xs)">推荐先配「企业微信机器人」:免费、群里就能收到、手机上立刻看到</span></div>'}
+      </div>
+      <div class="card-f">
+        <span>填好后先点「发送测试通知」验证能否收到,再点「保存配置」</span>
+        <span>写入 <code>config.json</code> 的 <code>notify</code> 段</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h2>最近一次推送结果</h2><span class="mut" style="font-size:var(--fs-xs)">${ln ? tstr(ln.at) : "本次会话尚未推送"}</span></div>
+      ${ln && ln.results.length
+        ? `<div class="tw"><table><thead><tr><th>渠道</th><th>结果</th></tr></thead><tbody>${ln.results.map(notifRow).join("")}</tbody></table></div>`
+        : '<div class="empty">还没有推送记录。采集时若出现告警/失败,会自动推送到已启用的渠道。</div>'}
+    </div>`;
+}
+
+function bindNotify() {
+  if (S.view !== "notify") return;
+  const collect = () => {
+    const channels = [...document.querySelectorAll("[data-ch]")].map((card) => {
+      const type = card.querySelector(".chType").value;
+      const ch = { type, disabled: !card.querySelector(".chOn").checked };
+      card.querySelectorAll(".chF").forEach((inp) => {
+        const k = inp.dataset.k, v = inp.value.trim();
+        if (!v) return;
+        if (k === "to") ch.to = v.split(/[,;]/).map((s) => s.trim()).filter(Boolean);
+        else if (k === "port") ch.port = Number(v);
+        else ch[k] = v;
+      });
+      return ch;
+    });
+    return { mode: $("nMode").value, channels };
+  };
+  $("btnAddChannel")?.addEventListener("click", () => {
+    S.notify = collect(); S.notify.channels.push({ type: "wecom", disabled: false }); render();
+  });
+  document.querySelectorAll("[data-chdel]").forEach((b) => b.onclick = () => {
+    S.notify = collect(); S.notify.channels.splice(Number(b.dataset.chdel), 1); render();
+  });
+  document.querySelectorAll(".chType").forEach((s) => s.onchange = () => {
+    S.notify = collect(); S.notify.channels[Number(s.dataset.i)].type = s.value; render();
+  });
+  $("btnSaveNotify")?.addEventListener("click", async (e) => {
+    const b = e.currentTarget; b.disabled = true; const old = b.textContent; b.textContent = "保存中…";
+    try { const r = await api("/api/notify", { method: "PUT", body: JSON.stringify(collect()) }); S.notify = r.notify; render(); toast("通知配置已保存", "ok"); }
+    catch (err) { toast("保存失败:" + err.message, "err"); b.disabled = false; b.textContent = old; }
+  });
+  $("btnNotifyTest")?.addEventListener("click", async (e) => {
+    const b = e.currentTarget; b.disabled = true; const old = b.textContent; b.textContent = "发送中…";
+    try {
+      await api("/api/notify", { method: "PUT", body: JSON.stringify(collect()) });  // 先存,保证测的就是当前配置
+      const r = await api("/api/notify-test", { method: "POST" });
+      if (!r.tested) toast("没有启用任何渠道,请先启用一个再测", "err");
+      else toast(r.ok ? `已发送到 ${r.tested} 个渠道,请检查是否收到` : "部分失败:" + r.results.filter((x) => !x.ok).map((x) => `${x.type}:${x.error}`).join("; "), r.ok ? "ok" : "err");
+    } catch (err) { toast("测试失败:" + err.message, "err"); }
+    b.disabled = false; b.textContent = old;
+  });
+}
+
+function viewStatus() {
+  const rt = S.data.runtime ?? {}, s = S.data.summary ?? {};
+  const lr = rt.lastRun;
+  return `
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-h"><h2>运行状态</h2><button class="btn sm" id="btnHealth">健康检查</button></div>
+      <div class="card-b">
+        <div class="detail-grid">
+          <div class="dstat"><span>运行时长</span><b>${rt.uptimeSec ?? 0} 秒</b></div>
+          <div class="dstat"><span>本次会话采集次数</span><b>${rt.runsTotal ?? 0}</b></div>
+          <div class="dstat"><span>当前是否在采集</span><b>${rt.running ? '<span class="neg">进行中</span>' : '<span class="pos">空闲</span>'}</b></div>
+          <div class="dstat"><span>最近一次采集</span><b style="font-size:14px">${lr ? tstr(lr.at) : "—"}</b></div>
+          <div class="dstat"><span>最近耗时</span><b>${lr ? (lr.ms / 1000).toFixed(1) + "s" : "—"}</b></div>
+          <div class="dstat"><span>最近结果</span><b style="font-size:14px">${lr ? `${lr.targets} 目标 / ${lr.alerts} 告警 / ${lr.errors} 失败` : "—"}</b></div>
+        </div>
+        ${rt.lastError ? `<div class="verdict bad"><span class="dot"></span>最近错误:${esc(rt.lastError)}</div>` : ""}
+        <p class="mut" style="font-size:var(--fs-xs);line-height:1.9;margin:0">
+          开发者信息:进程 Node ${esc(navigator.userAgent.match(/Chrome\/([\d.]+)/)?.[1] ? "" : "")}· 采集为顺序执行(天然限流)· 单目标失败不影响其余目标 ·
+          历史快照存于 <code>data/&lt;id&gt;.jsonl</code>,一行一次采集。<br />
+          接口:<code>GET /api/state</code> · <code>POST /api/run</code> · <code>POST /api/run/:id</code> · <code>GET /api/history?id=</code> ·
+          <code>POST/PUT/DELETE /api/targets</code> · <code>GET /api/export.csv</code> · <code>GET /api/health</code>
+        </p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h2>本次运行明细</h2></div>
+      <div class="tw"><table><thead><tr><th>目标</th><th class="n">值</th><th class="n">变化</th><th>状态</th></tr></thead>
+      <tbody>${(S.data.results ?? []).map((r) => `<tr><td>${esc(r.label)}</td><td class="n mono">${r.error ? "—" : fmt(r.value)}</td><td class="n mono">${r.delta == null ? (r.changed === undefined ? "—" : (r.changed ? "已变更" : "未变更")) : (r.delta > 0 ? "+" : "") + fmt(r.delta)}</td><td>${r.error ? '<span class="chip neg">失败</span>' : r.alert ? `<span class="chip warn">${esc(r.alert)}</span>` : '<span class="chip ok">正常</span>'}</td></tr>`).join("")}</tbody></table></div>
+    </div>`;
+}
+
+/* ========================= 事件绑定(每次渲染后) ========================= */
+function bindView() {
+  document.querySelectorAll("[data-sort]").forEach((n) => n.onclick = () => {
+    const k = n.dataset.sort;
+    S.sort = S.sort.k === k ? { k, d: -S.sort.d } : { k, d: k === "rank" ? 1 : -1 };
+    render();
+  });
+  document.querySelectorAll("[data-f]").forEach((n) => n.onclick = () => { S.filter = n.dataset.f; render(); });
+  document.querySelectorAll(".kpi[data-filter]").forEach((n) => n.onclick = () => { S.filter = n.dataset.filter; render(); });
+  document.querySelectorAll("[data-recollect]").forEach((b) => b.onclick = async (e) => {
+    e.stopPropagation();
+    const id = b.dataset.recollect;
+    b.disabled = true; b.textContent = "采集中…";
+    try { const r = await api(`/api/run/${encodeURIComponent(id)}`, { method: "POST" }); S.data = r.state; render(); toast(`已重新采集:${id}`, "ok"); }
+    catch (err) { render(); toast("采集失败:" + err.message, "err"); }
+  });
+  document.querySelectorAll("tbody tr[data-id]").forEach((tr) => tr.onclick = () => openDrawer(tr.dataset.id));
+  document.querySelectorAll("[data-edit]").forEach((b) => b.onclick = (e) => { e.stopPropagation(); openModal(b.dataset.edit); });
+  document.querySelectorAll("[data-del]").forEach((b) => b.onclick = async (e) => {
+    e.stopPropagation();
+    const id = b.dataset.del;
+    if (!confirm(`确定删除监控目标「${id}」?\n(历史快照会保留,只移除配置)`)) return;
+    try { const r = await api(`/api/targets/${encodeURIComponent(id)}`, { method: "DELETE" }); S.data = r.state; render(); toast("已删除 " + id, "ok"); }
+    catch (err) { toast("删除失败:" + err.message, "err"); }
+  });
+  const add = $("btnAdd"); if (add) add.onclick = () => openModal(null);
+  const h = $("btnHealth"); if (h) h.onclick = async () => {
+    try { const r = await api("/api/health"); toast(`健康:uptime ${r.uptimeSec}s · ${r.node}`, "ok"); }
+    catch (e) { toast("健康检查失败:" + e.message, "err"); }
+  };
+}
+
+/* ========================= 详情抽屉 ========================= */
+/** 把目标的采集配置整理成可读文本(详情里展示,便于排障) */
+function cfgText(r) {
+  const L = [];
+  if (Array.isArray(r.steps) && r.steps.length) {
+    L.push(`多步采集(${r.steps.length} 步;登录产生的 Cookie 会自动带到后续步骤):`);
+    r.steps.forEach((s, i) => {
+      L.push(`  ${i + 1}. ${s.method ?? "GET"} ${s.url}`);
+      if (s.saveAs) L.push(`       结果存为 {{${s.saveAs}}}`);
+      if (s.extract) L.push(`       提取 ${s.extract.type}${s.extract.path ? " → " + s.extract.path : ""}${s.extract.pattern ? " → " + s.extract.pattern : ""}`);
+    });
+  } else {
+    L.push(`${r.method ?? "GET"} ${r.url}`);
+    if (r.extract) L.push(`提取 ${r.extract.type}${r.extract.path ? " → " + r.extract.path : ""}${r.extract.pattern ? " → " + r.extract.pattern : ""}`);
+  }
+  if (r.headers) L.push(`\n请求头: ${Object.keys(r.headers).join(", ")}`);
+  if (r.cookies?.length) L.push(`Cookie: ${r.cookies.join(", ")}   ← 登录态`);
+  if (r.rule) L.push(`告警: ${Object.entries(r.rule).map(([k, v]) => k + "=" + v).join(" ")}`);
+  return L.join("\n");
+}
+
+async function openDrawer(id) {
+  S.drawerId = id;
+  const r = S.data.results.find((x) => x.id === id);
+  if (!r) return;
+  $("drawer").innerHTML = `
+    <div class="drawer-h">
+      <div><h3>${esc(r.label)}</h3><p>${esc(r.id)} · ${esc(r.url ?? "")}</p></div>
+      <button class="x" id="drawerX">×</button>
+    </div>
+    <div class="drawer-b" id="drawerBody"><div class="empty">加载历史…</div></div>
+    <div class="drawer-f">
+      <button class="btn" id="dRecollect">立即重采该目标</button>
+      <button class="btn" id="dEdit">编辑配置</button>
+      <button class="btn p" id="dClose">关闭</button>
+    </div>`;
+  $("drawerMask").classList.remove("hide");
+  $("drawerX").onclick = $("dClose").onclick = () => $("drawerMask").classList.add("hide");
+  $("dRecollect").onclick = async () => {
+    const b = $("dRecollect"); b.disabled = true; b.textContent = "采集中…";
+    try { const res = await api(`/api/run/${encodeURIComponent(id)}`, { method: "POST" }); S.data = res.state; toast("已重采", "ok"); openDrawer(id); render(); }
+    catch (e) { b.disabled = false; b.textContent = "立即重采该目标"; toast("失败:" + e.message, "err"); }
+  };
+  $("dEdit").onclick = () => { $("drawerMask").classList.add("hide"); openModal(id); };
+
+  try {
+    const { history } = await api(`/api/history?id=${encodeURIComponent(id)}&limit=200`);
+    const nums = history.map((x) => (typeof x.value === "number" ? x.value : null)).filter((v) => v !== null);
+    const mi = nums.length ? Math.min(...nums) : null, ma = nums.length ? Math.max(...nums) : null;
+    const last = history.at(-1), first = history[0];
+    const trend = nums.length > 1 ? (nums.at(-1) - nums[0]) : null;
+    $("drawerBody").innerHTML = `
+      <div class="detail-grid">
+        <div class="dstat"><span>当前值</span><b>${fmt(r.value)} <span class="mut" style="font-size:var(--fs-xs)">${esc(r.unit ?? "")}</span></b></div>
+        <div class="dstat"><span>历史采集次数</span><b>${history.length}</b></div>
+        <div class="dstat"><span>历史区间</span><b style="font-size:13px">${fmt(mi)} ~ ${fmt(ma)}</b></div>
+        <div class="dstat"><span>首 → 末 变化</span><b class="${trend == null ? "" : trend > 0 ? "pos" : trend < 0 ? "neg" : ""}">${trend == null ? "—" : (trend > 0 ? "+" : "") + fmt(trend)}</b></div>
+        <div class="dstat"><span>首次采集</span><b style="font-size:12.5px">${first ? tstr(first.ts) : "—"}</b></div>
+        <div class="dstat"><span>最近采集</span><b style="font-size:12.5px">${last ? tstr(last.ts) : "—"}</b></div>
+      </div>
+      <div class="card" style="box-shadow:none;margin-bottom:14px">
+        <div class="card-h"><h2>采集配置</h2>${r.multiStep ? `<span class="chip info">多步 ×${r.stepCount}</span>` : ""}</div>
+        <div class="card-b"><div class="cfgbox">${esc(cfgText(r))}</div></div>
+      </div>
+      <div class="card" style="box-shadow:none;margin-bottom:14px">
+        <div class="card-h"><h2>历史走势</h2></div>
+        <div class="card-b">${areaChart(nums, 500, 150)}</div>
+      </div>
+      <div class="card" style="box-shadow:none">
+        <div class="card-h"><h2>全部历史记录</h2><span class="mut" style="font-size:var(--fs-xs)">共 ${history.length} 条(倒序)</span></div>
+        <div class="tw" style="max-height:280px;overflow:auto">
+          <table class="htable"><thead><tr><th>时间</th><th class="n">值</th></tr></thead>
+          <tbody>${history.slice().reverse().map((x) => `<tr><td class="mono">${tstr(x.ts)}</td><td class="n mono">${fmt(x.value)}</td></tr>`).join("")}</tbody></table>
+        </div>
+      </div>`;
+  } catch (e) {
+    $("drawerBody").innerHTML = `<div class="empty neg">加载历史失败:${esc(e.message)}</div>`;
+  }
+}
+
+/* ========================= 新增 / 编辑弹窗 ========================= */
+function openModal(id) {
+  const t = id ? S.data.results.find((x) => x.id === id) : null;
+  const isNew = !t;
+  const rule = t?.rule ?? {};
+  const ruleKey = rule.changed ? "changed" : rule.changePct != null ? "changePct" : rule.above != null ? "above" : rule.below != null ? "below" : rule.z != null ? "z" : "";
+  const ruleVal = ruleKey ? rule[ruleKey] : "";
+  const cookieStr = t?.cookies ? Object.entries(t.cookies).map(([k, v]) => `${k}=${v}`).join("; ") : "";
+  const headerStr = t?.headers ? Object.entries(t.headers).map(([k, v]) => `${k}: ${v}`).join("\n") : "";
+  const stepsStr = t?.steps ? JSON.stringify(t.steps, null, 2) : "";
+  $("modal").innerHTML = `
+    <div class="drawer-h">
+      <div><h3>${isNew ? "新增监控目标" : "编辑监控目标"}</h3><p>${isNew ? "保存后写入 config.json" : esc(t.id)}</p></div>
+      <button class="x" id="mX">×</button>
+    </div>
+    <div class="drawer-b">
+      <div class="form">
+        <div class="row2">
+          <div class="fld"><label>ID(唯一标识)</label><input id="fId" value="${esc(t?.id ?? "")}" ${isNew ? "" : "disabled"} placeholder="如 price-a" /><span class="hint">字母数字 _ . - ,≤64 位</span></div>
+          <div class="fld"><label>显示名称</label><input id="fLabel" value="${esc(t?.label ?? "")}" placeholder="如 竞品A 官方售价" /></div>
+        </div>
+        <div class="fld"><label>监控地址(URL)</label><input id="fUrl" value="${esc(t?.url ?? "")}" placeholder="https://..." /></div>
+        <div class="row2">
+          <div class="fld"><label>提取方式</label>
+            <select id="fType">
+              <option value="json">json —— 从 API 取字段</option>
+              <option value="regex">regex —— 正则抠值</option>
+              <option value="length">length —— 取内容长度</option>
+              <option value="text">text —— 取全文</option>
+            </select><span class="hint">决定怎么从返回内容里取"你关心的那个数"</span></div>
+          <div class="fld"><label>单位(可选)</label><input id="fUnit" value="${esc(t?.unit ?? "")}" placeholder="元 / 星 / °C" /></div>
+        </div>
+        <div class="fld" id="wrapPath"><label>JSON 路径</label><input id="fPath" value="${esc(t?.extract?.path ?? "")}" placeholder="current.temperature_2m 或 data.0.price" /><span class="hint">用点号表示层级,数组用下标</span></div>
+        <div class="fld" id="wrapPattern"><label>正则表达式</label><input id="fPattern" value="${esc(t?.extract?.pattern ?? "")}" placeholder="&quot;latest&quot;\s*:\s*&quot;([^&quot;]+)&quot;" /><span class="hint">第一个捕获组即为取值</span></div>
+        <div class="row2">
+          <div class="fld"><label>告警规则</label>
+            <select id="fRule">
+              <option value="">不告警</option>
+              <option value="changePct">变化率超过 N%</option>
+              <option value="above">高于阈值</option>
+              <option value="below">低于阈值</option>
+              <option value="z">统计异常(偏离均值 N 个标准差)</option>
+              <option value="changed">内容发生变更</option>
+            </select></div>
+          <div class="fld"><label>规则参数</label><input id="fRuleVal" value="${esc(ruleVal)}" placeholder="数字,如 3" /></div>
+        </div>
+
+        <div class="fld"><label>Cookie(只有需要登录的站点才填)</label>
+          <input id="fCookies" value="${esc(cookieStr)}" placeholder="sid=abc123; token=xyz" />
+          <span class="hint">浏览器按 F12 → Application → Cookies 里复制粘贴</span></div>
+
+        <div class="fld"><label>请求头(可选,每行一个 Name: value)</label>
+          <textarea id="fHeaders" rows="2" placeholder="Authorization: Bearer xxxxx">${esc(headerStr)}</textarea></div>
+
+        <details class="adv">
+          <summary>高级:多步采集(先登录 / 取 token,再取数据)</summary>
+          <div class="fld" style="margin-top:10px">
+            <label>steps(JSON 数组;留空就用上面的简单配置)</label>
+            <textarea id="fSteps" rows="8" placeholder='[{"url":"https://a.com/login","method":"POST","body":{"user":"u","pass":"p"},"extract":{"type":"regex","pattern":"token=([a-z0-9]+)"},"saveAs":"tk"},{"url":"https://a.com/api/stats?t={{tk}}","extract":{"type":"json","path":"data.count"}}]'>${esc(stepsStr)}</textarea>
+            <span class="hint">
+              后续步骤可用 <code>{{变量名}}</code> 引用前面步骤 <code>saveAs</code> 存下的值;
+              登录产生的 Cookie 会<b>自动带到后面的步骤</b>。最后一步 extract 的值就是被监控的值。
+            </span>
+          </div>
+        </details>
+      </div>
+    </div>
+    <div class="drawer-f">
+      <button class="btn" id="mCancel">取消</button>
+      <button class="btn" id="mTest">先测一下能否取到值</button>
+      <button class="btn p" id="mSave">${isNew ? "创建" : "保存"}</button>
+    </div>`;
+  $("modalMask").classList.remove("hide");
+  $("fType").value = t?.extract?.type ?? "json";
+  $("fRule").value = ruleKey;
+  const sync = () => {
+    const ty = $("fType").value;
+    $("wrapPath").style.display = ty === "json" ? "" : "none";
+    $("wrapPattern").style.display = ty === "regex" ? "" : "none";
+  };
+  $("fType").onchange = sync; sync();
+  const close = () => $("modalMask").classList.add("hide");
+  $("mX").onclick = $("mCancel").onclick = close;
+
+  const buildTarget = () => {
+    const type = $("fType").value;
+    const ex = { type };
+    if (type === "json" && $("fPath").value.trim()) ex.path = $("fPath").value.trim();
+    if (type === "regex") { if (!$("fPattern").value.trim()) throw new Error("正则方式必须填 pattern"); ex.pattern = $("fPattern").value; }
+
+    const rk = $("fRule").value, rv = $("fRuleVal").value.trim();
+    let alert;
+    if (rk) {
+      if (rk === "changed") alert = { changed: true };
+      else { const n = Number(rv); if (!Number.isFinite(n)) throw new Error("告警规则参数必须是数字"); alert = { [rk]: n }; }
+    }
+
+    // Cookie:"sid=abc; token=xyz" -> { sid:"abc", token:"xyz" }
+    const ckRaw = $("fCookies").value.trim();
+    let cookies;
+    if (ckRaw) {
+      cookies = {};
+      ckRaw.split(/[;\n]/).map((s) => s.trim()).filter(Boolean).forEach((pair) => {
+        const i = pair.indexOf("=");
+        if (i > 0) cookies[pair.slice(0, i).trim()] = pair.slice(i + 1).trim();
+      });
+      if (!Object.keys(cookies).length) throw new Error("Cookie 格式不对,应为 name=value; name2=value2");
+    }
+
+    // 请求头:每行 "Name: value"
+    const hRaw = $("fHeaders").value.trim();
+    let headers;
+    if (hRaw) {
+      headers = {};
+      hRaw.split(/\n/).map((s) => s.trim()).filter(Boolean).forEach((line) => {
+        const i = line.indexOf(":");
+        if (i > 0) headers[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+      });
+      if (!Object.keys(headers).length) throw new Error("请求头格式不对,每行应为 Name: value");
+    }
+
+    // 多步:直接给 steps 数组(会覆盖上面的简单 url/extract)
+    const sRaw = $("fSteps").value.trim();
+    let steps;
+    if (sRaw) {
+      try { steps = JSON.parse(sRaw); } catch (e) { throw new Error("steps 不是合法 JSON:" + e.message); }
+      if (!Array.isArray(steps) || !steps.length) throw new Error("steps 必须是非空数组");
+    }
+
+    return {
+      id: $("fId").value.trim(), label: $("fLabel").value.trim(), url: $("fUrl").value.trim(),
+      extract: ex,
+      ...($("fUnit").value.trim() ? { unit: $("fUnit").value.trim() } : {}),
+      ...(alert ? { alert } : {}),
+      ...(cookies ? { cookies } : {}),
+      ...(headers ? { headers } : {}),
+      ...(steps ? { steps } : {}),
+    };
+  };
+
+  $("mTest").onclick = async () => {
+    const b = $("mTest"); b.disabled = true; b.textContent = "测试中…";
+    try {
+      const target = buildTarget();
+      // 临时用"新增再删"太重 —— 这里直接调 run 预览接口:用一次性采集
+      const res = await api("/api/run-preview", { method: "POST", body: JSON.stringify(target) });
+      toast(res.ok ? `取到值:${fmt(res.value)}${target.unit ? " " + target.unit : ""}` : "未取到值", res.ok ? "ok" : "err");
+    } catch (e) { toast("测试失败:" + e.message, "err"); }
+    b.disabled = false; b.textContent = "先测一下能否取到值";
+  };
+
+  $("mSave").onclick = async () => {
+    const b = $("mSave"); b.disabled = true; const old = b.textContent; b.textContent = "保存中…";
+    try {
+      const target = buildTarget();
+      const res = isNew
+        ? await api("/api/targets", { method: "POST", body: JSON.stringify(target) })
+        : await api(`/api/targets/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(target) });
+      S.data = res.state; render(); close(); toast(isNew ? "已创建,建议点刷新数据采集一次" : "已保存", "ok");
+    } catch (e) { toast("保存失败:" + e.message, "err"); b.disabled = false; b.textContent = old; }
+  };
+}
+
+/* ========================= 顶部动作 ========================= */
+$("q").oninput = (e) => { S.q = e.target.value.trim(); if (S.view !== "overview") { S.view = "overview"; } render(); };
+document.querySelectorAll(".nav-i").forEach((n) => n.onclick = () => { S.view = n.dataset.view; render(); });
+
+$("btnRun").onclick = async () => {
+  if (S.busy) return;
+  S.busy = true;
+  const b = $("btnRun"); b.disabled = true; b.innerHTML = '<span class="spin"></span> 采集中…';
+  try {
+    const res = await api("/api/run", { method: "POST" });
+    S.data = res.state; render();
+    const rr = res.run.results;
+    toast(`采集完成:${rr.length} 个目标,${rr.filter((r) => r.error).length} 失败,${rr.filter((r) => r.alert).length} 告警`, rr.some((r) => r.error) ? "err" : "ok");
+  } catch (e) { toast("采集失败:" + e.message, "err"); }
+  finally { S.busy = false; b.disabled = false; b.textContent = "刷新数据"; }
+};
+$("btnReport").onclick = () => window.open("/api/report/latest", "_blank");
+$("btnCsv").onclick = () => { location.href = "/api/export.csv"; toast("正在下载 CSV…"); };
+$("btnJson").onclick = () => { location.href = "/api/export.json"; toast("正在下载 JSON…"); };
+$("auto").onchange = (e) => {
+  clearInterval(S.auto); S.auto = null;
+  if (e.target.checked) { S.auto = setInterval(() => $("btnRun").click(), 60000); toast("已开启自动刷新(每 60 秒)"); }
+  else toast("已关闭自动刷新");
+};
+
+/* ========================= 启动 ========================= */
+(async () => {
+  try { S.data = await api("/api/state"); render(); }
+  catch (e) { $("view").innerHTML = `<div class="card"><div class="empty neg">加载失败:${esc(e.message)}<br />请确认已运行 <code>node server.mjs</code></div></div>`; }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+# 运行时产物(客户/自己的数据不进版本库)
+data/
+out/
+logs/
+dist/
+
+# 本地私有配置(把真实 webhook / Cookie 放这里,不要提交)
+config.local.json
+*.local.json
+
+# 系统
+.DS_Store
+Thumbs.db

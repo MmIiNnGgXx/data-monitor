@@ -1,0 +1,88 @@
+{
+  "name": "数据监控日报 · 示例配置",
+  "_comment": "复制这个文件改成客户要盯的目标即可。每个 target 只需:url + 提取规则 + 告警阈值。注意:GitHub API 未认证时限流 60 次/小时,故此处只保留 1 个 GitHub 目标。",
+
+  "notify": {
+    "mode": "on-alert",
+    "_modeHelp": "on-alert = 只在有告警/采集失败时推送(推荐);always = 每次都推;never = 不推",
+    "_howto": "把要用的渠道 disabled 改成 false 并填上自己的 webhook / 邮箱,然后点控制台里的「发送测试通知」验证。",
+    "channels": [
+      {
+        "type": "wecom",
+        "disabled": true,
+        "webhook": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=把这里换成你的KEY"
+      },
+      {
+        "type": "dingtalk",
+        "disabled": true,
+        "webhook": "https://oapi.dingtalk.com/robot/send?access_token=把这里换成你的TOKEN",
+        "secret": "机器人若开了加签,把 SEC 开头的密钥填这里;没开就删掉这一行"
+      },
+      {
+        "type": "email",
+        "disabled": true,
+        "host": "smtp.qq.com",
+        "port": 465,
+        "secure": true,
+        "user": "你的邮箱@qq.com",
+        "pass": "邮箱授权码(是授权码,不是登录密码)",
+        "from": "你的邮箱@qq.com",
+        "to": ["接收人@example.com"]
+      },
+      {
+        "type": "webhook",
+        "disabled": true,
+        "_help": "通用 Webhook:POST {title,text,summary,at};template 填 serverchan 可对接 Server酱",
+        "url": "https://example.com/your-hook",
+        "headers": {}
+      }
+    ]
+  },
+
+  "targets": [
+    {
+      "id": "gh-node-stars",
+      "label": "nodejs/node 星标数",
+      "url": "https://api.github.com/repos/nodejs/node",
+      "extract": { "type": "json", "path": "stargazers_count" },
+      "unit": "星",
+      "alert": { "changePct": 0.02 }
+    },
+    {
+      "id": "npm-vite-version",
+      "label": "Vite 最新版本(正则提取)",
+      "url": "https://registry.npmjs.org/vite",
+      "extract": { "type": "regex", "pattern": "\"latest\"\\s*:\\s*\"([^\"]+)\"" },
+      "alert": { "changed": true }
+    },
+    {
+      "id": "npm-react-version",
+      "label": "React 最新版本(正则提取)",
+      "url": "https://registry.npmjs.org/react",
+      "extract": { "type": "regex", "pattern": "\"latest\"\\s*:\\s*\"([^\"]+)\"" },
+      "alert": { "changed": true }
+    },
+    {
+      "id": "npm-typescript-version",
+      "label": "TypeScript 最新版本(正则提取)",
+      "url": "https://registry.npmjs.org/typescript",
+      "extract": { "type": "regex", "pattern": "\"latest\"\\s*:\\s*\"([^\"]+)\"" },
+      "alert": { "changed": true }
+    },
+    {
+      "id": "hn-maxitem",
+      "label": "Hacker News 内容总量(变化最快)",
+      "url": "https://hacker-news.firebaseio.com/v0/maxitem.json",
+      "extract": { "type": "json" },
+      "unit": "条"
+    },
+    {
+      "id": "weather-xiamen",
+      "label": "厦门实时气温",
+      "url": "https://api.open-meteo.com/v1/forecast?latitude=24.48&longitude=118.08&current=temperature_2m",
+      "extract": { "type": "json", "path": "current.temperature_2m" },
+      "unit": "°C",
+      "alert": { "below": 10 }
+    }
+  ]
+}
