@@ -22,7 +22,7 @@
 import http from "node:http";
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { join, dirname, extname, normalize } from "node:path";
+import { join, dirname, extname, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { collectAll, collectOne, stateFromHistory, judge, diffOf } from "./lib/collect.mjs";
 import { history, stats, append, ensureDir } from "./lib/store.mjs";
@@ -32,10 +32,12 @@ import { notify, notifyTest, CHANNEL_TYPES } from "./lib/notify.mjs";
 import { writeReports } from "./lib/report.mjs";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
-const CONFIG_PATH = join(ROOT, "config.json");
+const argOf = (k) => process.argv.find((a) => a.startsWith(`--${k}=`))?.slice(k.length + 3);
+
+// 支持 --config=某配置.json —— 方便切换不同的监控方案(例如跑案例配置)
+const CONFIG_PATH = resolve(ROOT, argOf("config") ?? "config.json");
 const DATA_DIR = join(ROOT, "data");
 const PUBLIC_DIR = join(ROOT, "public");
-const argOf = (k) => process.argv.find((a) => a.startsWith(`--${k}=`))?.slice(k.length + 3);
 const PORT = Number(argOf("port") ?? process.env.PORT ?? 4210);
 
 const MIME = {
@@ -373,7 +375,7 @@ server.listen(PORT, "127.0.0.1", () => {
   console.log(`    Console  :  http://127.0.0.1:${PORT}/`);
   console.log(`    Targets  :  ${cfg.targets.length}`);
   console.log("    Data     :  ./data        (history snapshots)");
-  console.log("    Config   :  ./config.json (edit this to change targets)");
+  console.log(`    Config   :  ${CONFIG_PATH.slice(ROOT.length + 1)}`);
   console.log("  ==================================================");
   console.log("    API : GET /api/state | POST /api/run | GET /api/health");
   console.log("    Stop: press Ctrl+C, or just close this window.");

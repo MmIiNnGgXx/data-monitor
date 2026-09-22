@@ -1,0 +1,76 @@
+{
+  "name": "案例 · 跨境电商小卖家监控",
+  "_背景": "一个做跨境小生意的卖家,每天要手动看 3 件事:① 美元汇率(进货成本/定价)② 竞品热度 ③ 发货地天气(影响物流)。这三件事都能用公开数据源自动盯。",
+  "_数据源说明": "全部是真实公开数据源,你可以把下面每个 url 复制到浏览器里自己验证",
+
+  "notify": {
+    "mode": "on-alert",
+    "_说明": "配好渠道后,出告警会主动推送到企业微信/钉钉/邮箱。现在先保持不启用,先看数据。",
+    "channels": [
+      { "type": "wecom", "disabled": true, "webhook": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=换成你的KEY" },
+      { "type": "dingtalk", "disabled": true, "webhook": "https://oapi.dingtalk.com/robot/send?access_token=换成你的TOKEN" }
+    ]
+  },
+
+  "targets": [
+    {
+      "id": "usdt-price",
+      "label": "★ 收款币价(BTC/USDT,秒级变化)",
+      "url": "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT",
+      "extract": { "type": "json", "path": "price" },
+      "unit": "USDT",
+      "alert": { "changePct": 0.5 },
+      "_业务含义": "很多跨境卖家收 USDT 结算,币价直接决定到手多少。",
+      "_验证用途": "这个数据秒级变化 —— 你连点两次「刷新数据」就能看到数字在动,证明工具真的在实时抓取,不是假数据。"
+    },
+    {
+      "id": "usd-cny",
+      "label": "美元兑人民币汇率",
+      "url": "https://api.frankfurter.app/latest?from=USD&to=CNY",
+      "extract": { "type": "json", "path": "rates.CNY" },
+      "alert": { "changePct": 0.3 },
+      "_业务含义": "汇率涨 1%,毛利就少 1%。超过 0.3% 就该看一眼。"
+    },
+    {
+      "id": "eur-cny",
+      "label": "欧元兑人民币汇率",
+      "url": "https://api.frankfurter.app/latest?from=EUR&to=CNY",
+      "extract": { "type": "json", "path": "rates.CNY" },
+      "alert": { "changePct": 0.3 }
+    },
+    {
+      "id": "rival-downloads",
+      "label": "竞品周下载量(npm vite)",
+      "url": "https://api.npmjs.org/downloads/point/last-week/vite",
+      "extract": { "type": "json", "path": "downloads" },
+      "unit": "次",
+      "alert": { "changePct": 20 },
+      "_业务含义": "竞品热度涨跌。跌 20% 以上说明对方出了问题,可以考虑抢市场;涨太猛要研究它在做什么。"
+    },
+    {
+      "id": "rival2-downloads",
+      "label": "竞品B周下载量(npm react)",
+      "url": "https://api.npmjs.org/downloads/point/last-week/react",
+      "extract": { "type": "json", "path": "downloads" },
+      "unit": "次",
+      "alert": { "changePct": 20 }
+    },
+    {
+      "id": "ship-city-weather",
+      "label": "发货地天气(厦门气温)",
+      "url": "https://api.open-meteo.com/v1/forecast?latitude=24.48&longitude=118.08&current=temperature_2m",
+      "extract": { "type": "json", "path": "current.temperature_2m" },
+      "unit": "°C",
+      "alert": { "above": 35 },
+      "_业务含义": "高温/暴雨会影响物流时效。超 35℃ 提醒客服提前告知买家。"
+    },
+    {
+      "id": "ship-city-wind",
+      "label": "发货地风速(影响航班)",
+      "url": "https://api.open-meteo.com/v1/forecast?latitude=24.48&longitude=118.08&current=wind_speed_10m",
+      "extract": { "type": "json", "path": "current.wind_speed_10m" },
+      "unit": "km/h",
+      "alert": { "above": 40 }
+    }
+  ]
+}
